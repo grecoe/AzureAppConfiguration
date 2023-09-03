@@ -1,4 +1,4 @@
-﻿namespace RPAppConfig.Models
+﻿namespace AppConfigDriver.Models
 {
     /// <summary>
     /// Settings from the appsettings.json.

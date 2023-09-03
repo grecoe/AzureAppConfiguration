@@ -56,6 +56,21 @@
             return AssemblyHelper.Sections;
         }
 
+        internal static KeyValuePair<Type, ConfigurationSectionAttribute>? GetConfigurationSectionAttribute(Type type)
+        {
+            KeyValuePair<Type, ConfigurationSectionAttribute>? return_value = null;
+
+
+            var attributes = type.GetCustomAttributes(typeof(ConfigurationSectionAttribute), true);
+            if(attributes.Any())
+            {
+                return_value = new KeyValuePair<Type, ConfigurationSectionAttribute>(type, attributes.First() as ConfigurationSectionAttribute);
+            }
+
+            return return_value;
+        }
+
+
         internal static ConfigAttributeMapping GetConfigurationAttributes(Type sectionType, string modelLibrary)
         {
             AssemblyHelper.GetSections(modelLibrary);
@@ -64,14 +79,24 @@
 
             List<KeyValuePair<Type, ConfigurationSectionAttribute>> section = AssemblyHelper.Sections.Where(x => x.Key == sectionType).ToList();
 
-            if (!section.Any())
+
+            KeyValuePair<Type, ConfigurationSectionAttribute>? selectedSection = null;
+            if (section.Any())
             {
-                throw new Exception("Type is not supported configuration section");
+                selectedSection = section.First();
+            }
+            else
+            {
+                selectedSection = AssemblyHelper.GetConfigurationSectionAttribute(sectionType);
             }
 
-            KeyValuePair<Type, ConfigurationSectionAttribute> selectedSection = section.First();
+            if(selectedSection == null)
+            {
+                throw new Exception($"{sectionType.Name} is not a valid AppConfig object.");
+            }
+            
 
-            returnMapping.SectionAttribute = selectedSection.Value;
+            returnMapping.SectionAttribute = selectedSection.Value.Value;
 
             // If class itself has a PropertyConfigurationAttribute, then child properties do not
             object[] classAttrs = sectionType.GetCustomAttributes(true);

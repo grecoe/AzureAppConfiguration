@@ -1,4 +1,4 @@
-namespace RPAppConfig.Workers
+namespace AppConfigDriver.Workers
 {
     using Microsoft.Extensions.Configuration.AzureAppConfiguration;
     using Microsoft.Extensions.Options;
