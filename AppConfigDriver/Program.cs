@@ -15,7 +15,6 @@ partial class Program
             // Running in stand alone with no pre-loaded objects.
 
             string endpoint = "https://appconfigbillingtest.azconfig.io";
-            string modelLibrary = "AppConfigModelLib";
 
             string firstLabel = "First";
             string secondLabel = "Second";
@@ -58,7 +57,6 @@ partial class Program
 
             // And then delete it.
             AzureAppConfiguration.DeleteSection<InAssemblyObject>(firstLabel);
-
         }
         else
         {

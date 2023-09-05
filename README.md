@@ -22,6 +22,7 @@ This project is made up of 3 assemblies
     - Update AppConfigDriver/appsettings.json on line 9 with this information.
 - Open Visual Studio.
 - Set AppConfigDriver as the Startup Project
+- Review [Program.cs](/AppConfigDriver/Program.cs) and decide whether you want to run standalone or as a service.
 - Hit F5 to start the program.
 
 #### Azure KeyVault
