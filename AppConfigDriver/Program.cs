@@ -8,7 +8,7 @@ partial class Program
 
     static async Task Main(string[] args)
     {
-        bool useService = true;
+        bool useService = false;
 
         if (!useService)
         {
@@ -28,20 +28,34 @@ partial class Program
                 new DefaultAzureCredential());
 
             InAssemblyObject? config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(firstLabel);
+            if(config != null)
+            {
+                Console.WriteLine("Configuration should not have been found. Clearing settings.");
+                AzureAppConfiguration.DeleteSection<InAssemblyObject>(firstLabel);
+            }
 
-            // config will be null
+            // Set up information
             InAssemblyObject firstObject = new InAssemblyObject()
             {
                 Property1 = "Test1",
                 Property2 = "Tetst2"
             };
-
             AzureAppConfiguration.SaveSection(firstObject, firstLabel);
 
             // Now it's not null
             config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(firstLabel);
+            if(config == null) 
+            {
+                Console.WriteLine("Configuration should have been found. Something went wrong");
+            }
+
             // This one is null
             config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(secondLabel);
+            if (config != null)
+            {
+                Console.WriteLine("Configuration should not have been found. Something went wrong");
+            }
+
             // And then delete it.
             AzureAppConfiguration.DeleteSection<InAssemblyObject>(firstLabel);
 
