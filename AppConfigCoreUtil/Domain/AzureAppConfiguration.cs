@@ -10,6 +10,8 @@
     using Newtonsoft.Json;
     using System;
     using System.Data;
+    using System.Net;
+    using System.Net.NetworkInformation;
     using System.Reflection;
 
     public class AzureAppConfiguration
@@ -88,6 +90,48 @@
         }
 
         /// <summary>
+        /// Gets a single property from the app configuration. Can be a part of a larger object
+        /// or a standalone property.
+        /// </summary>
+        /// <typeparam name="T">Type of object to return</typeparam>
+        /// <param name="key">Property key</param>
+        /// <param name="label">Property label, if any</param>
+        /// <returns>Instance of T with values if found, false otherwise.</returns>
+        public async Task<T?> GetConfigurationSetting<T>(string key, string? label = null)
+            where T: class
+        {
+            T? returnValue = null;
+
+            string usableLabel = string.IsNullOrEmpty(label) ? LabelFilter.Null : label;
+            ConfigurationSetting setting = new ConfigurationSetting(key, string.Empty, usableLabel);
+            Azure.Response<ConfigurationSetting> searchSetting = this.ConfigurationClient.GetConfigurationSetting(setting);
+
+            if(searchSetting.GetRawResponse().Status == (int)HttpStatusCode.OK)
+            {
+                if (!String.IsNullOrEmpty(searchSetting.Value.Value))
+                {
+                    if (searchSetting.Value.ContentType == AppConfigurationContentType.CONTENT_JSON )
+                    {
+                        MethodInfo genericDeserialize = GetGenericObjectDeserialize();
+                        MethodInfo genericMethod = genericDeserialize.MakeGenericMethod(typeof(T));
+                        returnValue = (T)genericMethod.Invoke(null, new object[] { searchSetting.Value.Value });
+                    }
+                    else if(searchSetting.Value.ContentType.ToLower().StartsWith("application/vnd.microsoft.appconfig.keyvaultref"))
+                    {
+                        string? data = await this.GetKVSecretValue(searchSetting.Value.Value);
+                        returnValue = data != null ? (T)Convert.ChangeType(data, typeof(T)) : null;
+                    }
+                    else
+                    {
+                        returnValue = (T)Convert.ChangeType(searchSetting.Value.Value, typeof(T));
+                    }
+                }
+            }
+
+            return returnValue;
+        }
+
+        /// <summary>
         /// Loads and instance of T with the given label from the AppConfiguration service. 
         /// 
         /// T must be class with the ConfigurationSectionAttribute, have a default constructor, 
@@ -119,7 +163,6 @@
                     LabelFilter = usableLabel
                 };
                 var settings = this.ConfigurationClient.GetConfigurationSettings(selector);
-
 
                 if (mapping.SectionConfiguration != null)
                 {

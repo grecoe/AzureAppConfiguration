@@ -1,6 +1,7 @@
 using Azure.Identity;
 using AppConfigCoreUtil.Domain;
 using AppConfigDriver.Models;
+using AppConfigModelLib.Models.Sections;
 
 partial class Program
 {
@@ -26,6 +27,16 @@ partial class Program
                 endpoint,
                 new DefaultAzureCredential());
 
+            // Get any single property by key/label
+            CosmosConfiguration? cosmosConfig = await AzureAppConfiguration.LoadSection<CosmosConfiguration>("Development");
+            string? kvValue = await AzureAppConfiguration.GetConfigurationSetting<string?>("Cosmos:ConnectionString", "Development"); 
+            if(cosmosConfig.ConnectionString != kvValue)
+            {
+                Console.WriteLine("Fields do not match");
+            }
+
+            // Also can use those identified in another assembly even without having that assembly searched.
+            // CosmosConfiguration? cconfig = await AzureAppConfiguration.LoadSection<CosmosConfiguration>("Development");
             InAssemblyObject? config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(firstLabel);
             if(config != null)
             {
