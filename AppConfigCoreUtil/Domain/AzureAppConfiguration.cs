@@ -13,6 +13,7 @@
     using System.Net;
     using System.Net.NetworkInformation;
     using System.Reflection;
+    using System.Reflection.Metadata;
 
     public class AzureAppConfiguration
     {
@@ -90,6 +91,35 @@
         }
 
         /// <summary>
+        /// Create or update a configuration value
+        /// </summary>
+        /// <param name="key">Key</param>
+        /// <param name="content">Content to write</param>
+        /// <param name="contentType">Content type of the value</param>
+        /// <param name="label">Label if given.</param>
+        public void CreateOrUpdateConfigurationSetting(
+            string key, 
+            string content, 
+            string contentType,
+            string? label = null)
+        {
+            ConfigurationSetting settingData = new ConfigurationSetting(key, content, label)
+            {
+                ContentType = contentType
+            };
+
+            try
+            {
+                var response = this.ConfigurationClient.AddConfigurationSetting(settingData);
+            }
+            catch (Azure.RequestFailedException exists)
+            {
+                var response = this.ConfigurationClient.SetConfigurationSetting(settingData);
+            }
+
+        }
+
+        /// <summary>
         /// Gets a single property from the app configuration. Can be a part of a larger object
         /// or a standalone property.
         /// </summary>
@@ -110,25 +140,33 @@
             {
                 if (!String.IsNullOrEmpty(searchSetting.Value.Value))
                 {
-                    if (searchSetting.Value.ContentType == AppConfigurationContentType.CONTENT_JSON )
-                    {
-                        MethodInfo genericDeserialize = GetGenericObjectDeserialize();
-                        MethodInfo genericMethod = genericDeserialize.MakeGenericMethod(typeof(T));
-                        returnValue = (T)genericMethod.Invoke(null, new object[] { searchSetting.Value.Value });
-                    }
-                    else if(searchSetting.Value.ContentType.ToLower().StartsWith("application/vnd.microsoft.appconfig.keyvaultref"))
-                    {
-                        string? data = await this.GetKVSecretValue(searchSetting.Value.Value);
-                        returnValue = data != null ? (T)Convert.ChangeType(data, typeof(T)) : null;
-                    }
-                    else
-                    {
-                        returnValue = (T)Convert.ChangeType(searchSetting.Value.Value, typeof(T));
-                    }
+                    object? value = await GetConfigurationValue(
+                                                        searchSetting.Value.ContentType.ToLower(),
+                                                        searchSetting.Value.Value,
+                                                        typeof(T));
+
+                    returnValue = value != null ? (T)value : null;
                 }
             }
 
             return returnValue;
+        }
+
+        /// <summary>
+        /// Delete a single property
+        /// </summary>
+        /// <param name="key">Property Key</param>
+        /// <param name="label">Property Label (null == none)</param>
+        /// <returns>True if deleted</returns>
+        public bool DeleteConfigurationSetting(string key, string? label = null)
+        {
+            bool deleteSuccess = false;
+            Azure.Response response = this.ConfigurationClient.DeleteConfigurationSetting(key, label);
+            if (response.IsError)
+            {
+                deleteSuccess = false;
+            }
+            return deleteSuccess;
         }
 
         /// <summary>
@@ -142,11 +180,10 @@
         /// no label.</param>
         /// <returns>An instance of T with the given label. If T data does exist but the label is 
         /// incorrect, null returned.</returns>
-        public async Task<T?> LoadSection<T>(string? label = null)
+        public async Task<T?> GetSection<T>(string? label = null)
             where T : class, new()
         {
             T? returnValue = null;
-
             bool loadedData = false;
 
             ConfigAttributeMapping mapping = 
@@ -154,14 +191,13 @@
 
             if (mapping.SectionAttribute != null)
             {
-                MethodInfo genericDeserialize = GetGenericObjectDeserialize();
                 string usableLabel = string.IsNullOrEmpty(label) ? LabelFilter.Null : label;
-
                 SettingSelector selector = new SettingSelector()
                 {
                     KeyFilter = string.Format("{0}*", mapping.SectionAttribute.SectionName),
                     LabelFilter = usableLabel
                 };
+
                 var settings = this.ConfigurationClient.GetConfigurationSettings(selector);
 
                 if (mapping.SectionConfiguration != null)
@@ -169,11 +205,16 @@
                     // There really can be only one setting here...
                     foreach (var setting in settings)
                     {
+                        // Keys have to align
                         if (setting.Key == mapping.SectionConfiguration.Key &&
                             mapping.SectionConfiguration.ContentType == AppConfigurationContentType.CONTENT_JSON)
                         {
-                            MethodInfo genericMethod = genericDeserialize.MakeGenericMethod(typeof(T));
-                            returnValue = (T)genericMethod.Invoke(null, new object[] { setting.Value });
+                            object? value = await GetConfigurationValue(
+                                                                setting.ContentType.ToLower(),
+                                                                setting.Value,
+                                                                typeof(T));
+
+                            returnValue = value == null? null : (T)value;
                             loadedData = true;
                         }
                     }
@@ -196,22 +237,16 @@
                             KeyValuePair<string, PropertyConfigurationAttribute> target = attributes.First();
 
                             // Have to look at type here to make sure we unroll it if required. 
-                            PropertyInfo pInfo = returnValue.GetType().GetProperty(target.Key);
+                            PropertyInfo? pInfo = returnValue.GetType().GetProperty(target.Key);
 
-                            if (!String.IsNullOrEmpty(setting.ContentType) && setting.ContentType.ToLower() == "application/json")
+                            if (pInfo != null)
                             {
-                                MethodInfo genericMethod = genericDeserialize.MakeGenericMethod(pInfo.PropertyType);
-                                var serializeObject = genericMethod.Invoke(null, new object[] { setting.Value });
-                                pInfo.SetValue(returnValue, serializeObject);
-                            }
-                            else if (!String.IsNullOrEmpty(setting.ContentType) && setting.ContentType.ToLower().StartsWith("application/vnd.microsoft.appconfig.keyvaultref"))
-                            {
-                                string? secretValue = await this.GetKVSecretValue(setting.Value);
-                                pInfo.SetValue(returnValue, Convert.ChangeType(secretValue, pInfo.PropertyType));
-                            }
-                            else
-                            {
-                                pInfo.SetValue(returnValue, Convert.ChangeType(setting.Value, pInfo.PropertyType));
+                                object? value = await GetConfigurationValue(
+                                    setting.ContentType.ToLower(),
+                                    setting.Value,
+                                    pInfo.PropertyType);
+
+                                pInfo.SetValue(returnValue, value);
                             }
                         }
                     }
@@ -232,7 +267,7 @@
         /// <typeparam name="T">Type of object to save to AppConfiguration.</typeparam>
         /// <param name="sectionContent">Instance of T</param>
         /// <param name="optionalLabel">Label in which to save</param>
-        public void SaveSection<T>(T sectionContent, string? optionalLabel = null)
+        public void CreateOrUpdateSection<T>(T sectionContent, string? optionalLabel = null)
             where T : class, new()
         {
             ConfigurtionIdentities identities = GetIdentities<T>(false, optionalLabel);
@@ -265,19 +300,7 @@
                     }
                 }
 
-                ConfigurationSetting settingData = new ConfigurationSetting(id.Key, content, id.Label)
-                {
-                    ContentType = id.ContentType
-                };
-
-                try
-                {
-                    var response = this.ConfigurationClient.AddConfigurationSetting(settingData);
-                }
-                catch (Azure.RequestFailedException exists)
-                {
-                    var response = this.ConfigurationClient.SetConfigurationSetting(settingData);
-                }
+                this.CreateOrUpdateConfigurationSetting(id.Key, content, id.ContentType, id.Label);
             }
         }
 
@@ -287,19 +310,15 @@
         /// <typeparam name="T">Type of object to save to AppConfiguration.</typeparam>
         /// <param name="optionalLabel">Label in which to save</param>
         /// <returns>True if deleted.</returns>
-        public bool DeleteSection<T>(string? optionalLabel)
+        public bool DeleteSection<T>(string? label = null)
             where T : class, new()
         {
             bool deleteSuccess = true;
 
-            ConfigurtionIdentities identities = GetIdentities<T>(includeSecrets: true, optionalLabel: optionalLabel);
-
+            ConfigurtionIdentities identities = GetIdentities<T>(includeSecrets: true, optionalLabel: label);
             foreach (ConfigurationIdentity id in identities.IdentityList)
             {
-                // 204 if not exists
-                // 200 if deleted
-                Azure.Response response = this.ConfigurationClient.DeleteConfigurationSetting(id.Key, id.Label);
-                if( response.IsError)
+                if (this.DeleteConfigurationSetting(id.Key, id.Label))
                 {
                     deleteSuccess = false;
                 }
@@ -307,6 +326,8 @@
 
             return deleteSuccess;
         }
+
+
 
         /// <summary>
         /// Get the identity map between the AppConfiguration and the underlying class that is supporting
@@ -366,6 +387,37 @@
         }
 
         /// <summary>
+        /// Get a single configuration value.
+        /// </summary>
+        /// <param name="contentType">Type of the value</param>
+        /// <param name="value">The stored value</param>
+        /// <param name="propertyType">Type it should be.</param>
+        /// <returns></returns>
+        private async Task<object?> GetConfigurationValue(string contentType, string value, Type propertyType)
+        {
+            object? returnObject = null;
+
+            if (!string.IsNullOrEmpty(contentType) && contentType.StartsWith(AppConfigurationContentType.CONTENT_KV))
+            {
+                returnObject = await this.GetKVSecretValue(value);
+            }
+            else
+            {
+                switch (contentType)
+                {
+                    case AppConfigurationContentType.CONTENT_JSON:
+                        returnObject = DeserializeObject(propertyType, value);
+                        break;
+                    default:
+                        returnObject = Convert.ChangeType(value, propertyType);
+                        break;
+                }
+            }
+
+            return returnObject;
+        }
+
+        /// <summary>
         /// Retrieve a secret from keyvault with the payload provided for the property
         /// in the form of a keyvault reference.
         /// </summary>
@@ -414,6 +466,24 @@
             }
             return secretValue;
 
+        }
+
+        /// <summary>
+        /// Deserialize some generic object from application/json content
+        /// </summary>
+        /// <param name="T">Object type to create</param>
+        /// <param name="content">JSON Content</param>
+        /// <returns>Object, if valid.</returns>
+        private static object? DeserializeObject(Type T, string content)
+        {
+            object? returnObject = null;
+            if (!string.IsNullOrEmpty(content))
+            {
+                MethodInfo genericDeserialize = GetGenericObjectDeserialize();
+                MethodInfo genericMethod = genericDeserialize.MakeGenericMethod(T);
+                returnObject = genericMethod.Invoke(null, new object[] { content });
+            }
+            return returnObject;
         }
 
         /// <summary>

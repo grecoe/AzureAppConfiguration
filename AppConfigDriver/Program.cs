@@ -27,8 +27,9 @@ partial class Program
                 endpoint,
                 new DefaultAzureCredential());
 
+
             // Get any single property by key/label
-            CosmosConfiguration? cosmosConfig = await AzureAppConfiguration.LoadSection<CosmosConfiguration>("Development");
+            CosmosConfiguration? cosmosConfig = await AzureAppConfiguration.GetSection<CosmosConfiguration>("Development");
             string? kvValue = await AzureAppConfiguration.GetConfigurationSetting<string?>("Cosmos:ConnectionString", "Development"); 
             if(cosmosConfig.ConnectionString != kvValue)
             {
@@ -37,7 +38,7 @@ partial class Program
 
             // Also can use those identified in another assembly even without having that assembly searched.
             // CosmosConfiguration? cconfig = await AzureAppConfiguration.LoadSection<CosmosConfiguration>("Development");
-            InAssemblyObject? config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(firstLabel);
+            InAssemblyObject? config = await AzureAppConfiguration.GetSection<InAssemblyObject>(firstLabel);
             if(config != null)
             {
                 Console.WriteLine("Configuration should not have been found. Clearing settings.");
@@ -50,17 +51,17 @@ partial class Program
                 Property1 = "Test1",
                 Property2 = "Tetst2"
             };
-            AzureAppConfiguration.SaveSection(firstObject, firstLabel);
+            AzureAppConfiguration.CreateOrUpdateSection(firstObject, firstLabel);
 
             // Now it's not null
-            config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(firstLabel);
+            config = await AzureAppConfiguration.GetSection<InAssemblyObject>(firstLabel);
             if(config == null) 
             {
                 Console.WriteLine("Configuration should have been found. Something went wrong");
             }
 
             // This one is null
-            config = await AzureAppConfiguration.LoadSection<InAssemblyObject>(secondLabel);
+            config = await AzureAppConfiguration.GetSection<InAssemblyObject>(secondLabel);
             if (config != null)
             {
                 Console.WriteLine("Configuration should not have been found. Something went wrong");
