@@ -16,7 +16,9 @@
     public class AzureAppConfiguration
     {
         /// <summary>
-        /// The AppConfiguration endpoint
+        /// The AppConfiguration endpoint in the form
+        /// 
+        /// https://[YOUR_APP_CONFIG_INSTANCE_NAME].azconfig.io
         /// </summary>
         public string Endpoint { get; private set; }
         /// <summary>
@@ -26,12 +28,19 @@
         /// </summary>
         public TokenCredential Credential { get; private set; }
         /// <summary>
-        /// The AppConfiguration ConfigurationClient.
+        /// The Azure.Data.AppConfiguration ConfigurationClient. While this can be used 
+        /// independently of this class, it is recommended to use the methods exposed in 
+        /// this class. 
         /// </summary>
         public ConfigurationClient ConfigurationClient { get; private set; }
         /// <summary>
-        /// Optional library to load objects from if using in a service for auto detection
-        /// of fields/properties. 
+        /// Optiona and used ONLY when using an AzureAppConfiguration instance with a service. 
+        /// Standalone does not require this. 
+        /// 
+        /// The modelLibrary name is the name of a class library that defines classes that are 
+        /// attributed with the ConfigurationSectionAttribute. The information about these classes
+        /// is pre-loaded to ensure that the correct sections and properties can be added for the 
+        /// service to access and recieve notifications on. 
         /// </summary>
         public string ModelLibrary { get; private set; }
         /// <summary>
@@ -51,9 +60,8 @@
         }
 
         /// <summary>
-        /// Acquire the configuraiton mapping for all loaded objects. This data is used by 
-        /// the service code to automatically find all sections in which to load and which 
-        /// fields to be notified on.
+        /// Acquire the configuraiton mapping for all loaded objects from teh ModelLibrary. This data is used by 
+        /// the service code to automatically find all sections in which to load and which fields to be notified on.
         /// </summary>
         /// <returns>Mapping object for a WorkerService to configure AppConfiguration.</returns>
         public ConfigurationMapping GetConfigurationMapping()
@@ -91,9 +99,9 @@
         /// <summary>
         /// Create or update a configuration value
         /// </summary>
-        /// <param name="key">Key</param>
-        /// <param name="content">Content to write</param>
-        /// <param name="contentType">Content type of the value</param>
+        /// <param name="key">AppConfiguration Property Key</param>
+        /// <param name="content">The actual content of the property.</param>
+        /// <param name="contentType">The content type of the property</param>
         /// <param name="label">Label if given.</param>
         public void CreateOrUpdateConfigurationSetting(
             string key, 
@@ -122,7 +130,7 @@
         /// or a standalone property.
         /// </summary>
         /// <typeparam name="T">Type of object to return</typeparam>
-        /// <param name="key">Property key</param>
+        /// <param name="key">AppConfiguration Property Key</param>
         /// <param name="label">Property label, if any</param>
         /// <returns>Instance of T with values if found, false otherwise.</returns>
         public async Task<T?> GetConfigurationSetting<T>(string key, string? label = null)
@@ -153,7 +161,7 @@
         /// <summary>
         /// Delete a single property
         /// </summary>
-        /// <param name="key">Property Key</param>
+        /// <param name="key">AppConfiguration Property Key</param>
         /// <param name="label">Property Label (null == none)</param>
         /// <returns>True if deleted</returns>
         public bool DeleteConfigurationSetting(string key, string? label = null)

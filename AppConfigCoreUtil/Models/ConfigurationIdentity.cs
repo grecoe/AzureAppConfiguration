@@ -3,19 +3,22 @@
     internal class ConfigurationIdentity
     {
         /// <summary>
-        /// AppConfiguration Key
+        /// AppConfiguration full key identifying the property.
         /// </summary>
         public string Key { get; set; } = string.Empty;
         /// <summary>
-        /// AppConfiguration label.
+        /// AppConfiguration label for the property.
         /// </summary>
         public string Label { get; set; } = string.Empty;
         /// <summary>
-        /// App configuration content type.
+        /// App configuration content type which should be one of AppConfigurationContentType,
+        /// but other options are available, though not fully supported in the current iteration
+        /// of this source.
         /// </summary>
         public string ContentType { get;set ; } = string.Empty;
         /// <summary>
-        /// Underlying class property name to map to.
+        /// Underlying class property name in a class attributed by ConfigurationSectionAttribute and
+        /// PropertyConfigurationAttribute.
         /// </summary>
         public string UnderlyingProperty { get; set; } = string.Empty;
     }

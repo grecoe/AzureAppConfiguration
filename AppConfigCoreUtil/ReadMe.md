@@ -64,3 +64,12 @@ The code does not solely rely on the AppConfiguration framework to read/write da
         // a new label. 
         azureAppConfiguration.SaveSection(testSection, "Backup");
 ``````
+
+## Documentation
+
+```bash
+PS C:\gitrepogrecoe\AzureAppConfiguration> cd .\docfx_project\
+PS C:\gitrepogrecoe\AzureAppConfiguration\docfx_project> docfx
+PS C:\gitrepogrecoe\AzureAppConfiguration\docfx_project> cd ..
+PS C:\gitrepogrecoe\AzureAppConfiguration> docfx serve docfx_project/_site
+```

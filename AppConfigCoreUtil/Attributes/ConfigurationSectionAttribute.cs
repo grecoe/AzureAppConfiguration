@@ -1,12 +1,21 @@
 ﻿namespace AppConfigCoreUtil.Attributes
 {
     /// <summary>
-    /// An attribute to decorate a class with identifying a section of AppConfiguration.
+    /// An attribute used ONLY to be used on classes. 
     /// 
-    /// A section deliniates properties such as
+    /// The attribute identifies the global section name and individual properties
+    /// contained within that are identified with PropertyConfigurationAttribute attribute.
     /// 
-    /// section:prop1
-    /// section:prop2
+    /// For example, you have an object that identifies these fields for a CosmosDB
+    /// Cosmos:ConnectionString
+    /// Cosmos:Database
+    /// 
+    /// The property section name here would be "Cosmos"
+    /// 
+    /// Additionallly, if you have a class that encapsulates a single property
+    /// 1. It must be content type application/json
+    /// 2. The class is attributed with both ConfigurationSectionAttribute and PropertyConfigurationAttribute
+    /// 3. Both attributes have an identical value for SectionName and Key, respectively. 
     /// </summary>
     [AttributeUsage(AttributeTargets.Class |
                     AttributeTargets.Struct,
