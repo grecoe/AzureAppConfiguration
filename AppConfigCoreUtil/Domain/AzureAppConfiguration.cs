@@ -11,10 +11,8 @@
     using System;
     using System.Data;
     using System.Net;
-    using System.Net.NetworkInformation;
     using System.Reflection;
-    using System.Reflection.Metadata;
-
+    
     public class AzureAppConfiguration
     {
         /// <summary>
