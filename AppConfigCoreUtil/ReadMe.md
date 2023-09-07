@@ -67,6 +67,10 @@ The code does not solely rely on the AppConfiguration framework to read/write da
 
 ## Documentation
 
+Ensure docfx is up to date
+
+> dotnet tool install --global docfx --version 2.70.3
+
 ```bash
 PS C:\gitrepogrecoe\AzureAppConfiguration> cd .\docfx_project\
 PS C:\gitrepogrecoe\AzureAppConfiguration\docfx_project> docfx
