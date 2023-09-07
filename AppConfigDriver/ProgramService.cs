@@ -103,13 +103,18 @@ partial class Program
 
         // Add logging, refresher and worker service
         services.AddLogging();
-        services.AddSingleton(_refresher);
+        if(_refresher != null)
+        {
+            services.AddSingleton(_refresher);
+        }
         services.AddHostedService<Worker>();
     }
 
     /// <summary>
     /// Used to load the appsettings.json file as it has the AppConfiguration endpoint and other
     /// configuration values needed.
+    /// 
+    /// Just as easily could be environment variables.
     /// </summary>
     static ConfigurationProperties? GetConfigurationProperties(HostBuilderContext context, string appSettingsFile)
     {
