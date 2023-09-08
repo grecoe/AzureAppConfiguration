@@ -1,5 +1,4 @@
 ﻿using AppConfigCoreUtil.Domain;
-using AppConfigCoreUtil.Models;
 using AppConfigModelLib.Models.Sections;
 using AppConfigDriver.Models;
 using AppConfigDriver.Workers;
@@ -10,7 +9,7 @@ using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 partial class Program
 {
     private static string _applicationSettings = "appsettings.json";
-    private static IConfigurationRefresher? _refresher = null;
+    private static AzureAppConfiguration? AppConfiguration = null;
     private static ConfigurationProperties? ConfigurationProperties = null;
 
 
@@ -39,55 +38,13 @@ partial class Program
         // have your models of data from AppConfiguration stored in a separate class library. 
         //
         // If you store them in the same assembly as your application, pass your app name in.
-        AzureAppConfiguration appConfiguration = new AzureAppConfiguration(
+        AppConfiguration = new AzureAppConfiguration(
             configurationProperties.AzureAppConfigurationEndpoint,
             credential,
             configurationProperties.ModelLibrary);
 
-        config.AddAzureAppConfiguration(options =>
-        {
-            // REQUIREMENTS - Same identity is used in AppConfig and KeyVault
-            // AppConfiguration = "App Configuration Data Owner"
-            // KeyVault = "Key Vault Secrets Officer"
-
-            // Because we are using values from a keyvault we need to also make the connection
-            // to that vault. Ensure you have provided yourself with the proper rights.
-            options.Connect(new Uri(appConfiguration.Endpoint), credential)
-            .ConfigureKeyVault(kv =>
-            {
-                kv.SetCredential(credential);
-            });
-
-            // You do NOT need to know all of the configurations or what to target for 
-            // a notification update, the AzureAppConfiguration has all that information
-            // from objects loaded in ModelLibrary and likely you'll want to target all of them 
-            // for reading whether you read them or not.
-            ConfigurationMapping mapping = appConfiguration.GetConfigurationMapping();
-            foreach (KeyValuePair<string, SectionConfiguration> map in mapping.SectionMappings)
-            {
-                options.Select(string.Format("{0}*", map.Key), activeLabel);
-            }
-
-            // Similarly you don't need to know the fields to listen on, just add them all.
-            // If in fact you don't want to listen to them all, you can filter out which ones
-            // you want here. 
-            List<string> changeNotificationFields = mapping.SectionMappings
-                .Select(x => x.Value.NotificationFields)
-                .SelectMany(field => field)
-                .ToList();
-
-            options.ConfigureRefresh(refresh =>
-            {
-                foreach (string field in changeNotificationFields)
-                {
-                    refresh
-                        .Register(field, activeLabel, false)
-                        .SetCacheExpiration(TimeSpan.FromSeconds(5));
-                }
-            });
-
-            _refresher = options.GetRefresher();
-        });
+        // Configure the AppConfiguration with notifications and the active label
+        AppConfiguration.ConfigureAppConfiguration(config, activeLabel);
     }
 
 
@@ -97,18 +54,31 @@ partial class Program
     /// </summary>
     static void ConfigureServices(HostBuilderContext context, IServiceCollection services)
     {
-        // You DO HAVE to know the section name AND class that supports it here so that 
-        // they are available in your worker service. 
-        services.AddOptions<CosmosConfiguration>().Bind(context.Configuration.GetSection("Cosmos"));
-        services.AddOptions<SinglePropConfiguration>().Bind(context.Configuration.GetSection("SingleProp:Data"));
-
-        // Add logging, refresher and worker service
         services.AddLogging();
-        if(_refresher != null)
-        {
-            services.AddSingleton(_refresher);
-        }
         services.AddHostedService<Worker>();
+
+        // If we have teh app configuration AND there is a provider for it, then we can
+        // set up the options monitors for the sections we want to monitor and add a refresher
+        if (AppConfiguration != null)
+        {
+            ConfigurationRoot? configRoot = (context.Configuration as ConfigurationRoot);
+            if(configRoot != null )
+            {
+                if (configRoot.Providers.Select(x => x.GetType().Name).Contains("AzureAppConfigurationProvider"))
+                {
+                    // You DO HAVE to know the section name AND class that supports it here so that 
+                    // they are available in your worker service. 
+                    services.AddOptions<CosmosConfiguration>().Bind(context.Configuration.GetSection("Cosmos"));
+                    services.AddOptions<SinglePropConfiguration>().Bind(context.Configuration.GetSection("SingleProp:Data"));
+
+                    // Add refresher if present
+                    if (AppConfiguration.Refresher != null)
+                    {
+                        services.AddSingleton(AppConfiguration.Refresher);
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>

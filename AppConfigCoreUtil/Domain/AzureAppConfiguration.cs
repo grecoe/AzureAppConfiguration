@@ -6,6 +6,7 @@
     using Azure.Data.AppConfiguration;
     using Azure.Identity;
     using Azure.Security.KeyVault.Secrets;
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Configuration.AzureAppConfiguration;
     using Newtonsoft.Json;
     using System;
@@ -44,6 +45,12 @@
         /// </summary>
         public string ModelLibrary { get; private set; }
         /// <summary>
+        /// The IConfigurationRefresher used only in conjunction with the ModelLibrary 
+        /// and in an IHost situation that supports IConfigurationBuilder. 
+        /// </summary>
+        public IConfigurationRefresher? Refresher { get; private set; } = null;
+
+        /// <summary>
         /// Internal cache for secret clients needed to load data from KeyVault. 
         /// </summary>
         private Dictionary<Uri, SecretClient> SecretClientCache { get; set; } = new Dictionary<Uri, SecretClient>();
@@ -57,6 +64,70 @@
 
             // Secret client..... https://github.com/Azure/azure-sdk-for-net/issues/13342
             // Cannot search for labels https://github.com/Azure/AppConfiguration/issues/647
+        }
+
+
+        /// <summary>
+        /// Configures the AppConfiguration for use with the service.
+        /// 
+        /// Sets up the sections to search for based on objects found in the model library (required) 
+        /// and the fields in which to get a notification. 
+        /// 
+        /// After execution, the IConfigurationRefresher is available for use.
+        /// </summary>
+        /// <param name="config">IConfigurationBuilder from an IHostBuilder</param>
+        /// <param name="activeLabel">The label to use when associating sections.</param>
+        public void ConfigureAppConfiguration(IConfigurationBuilder config, string activeLabel)
+        {
+            config.AddAzureAppConfiguration(options =>
+            {
+                // REQUIREMENTS - Same identity is used in AppConfig and KeyVault
+                // AppConfiguration = "App Configuration Data Owner"
+                // KeyVault = "Key Vault Secrets Officer"
+
+                // Because we are using values from a keyvault we need to also make the connection
+                // to that vault. Ensure you have provided yourself with the proper rights.
+                options.Connect(new Uri(this.Endpoint), this.Credential)
+                .ConfigureKeyVault(kv =>
+                {
+                    kv.SetCredential(this.Credential);
+                });
+
+                ConfigurationMapping mapping = this.GetConfigurationMapping();
+                if (mapping.SectionMappings.Count == 0)
+                {
+                    throw new Exception($"No section data found in model library{this.ModelLibrary}");
+                }
+
+                // You do NOT need to know all of the configurations or what to target for 
+                // a notification update, the AzureAppConfiguration has all that information
+                // from objects loaded in ModelLibrary and likely you'll want to target all of them 
+                // for reading whether you read them or not.
+                foreach (KeyValuePair<string, SectionConfiguration> map in mapping.SectionMappings)
+                {
+                    options.Select(string.Format("{0}*", map.Key), activeLabel);
+                }
+
+                // Similarly you don't need to know the fields to listen on, just add them all.
+                // If in fact you don't want to listen to them all, you can filter out which ones
+                // you want here. 
+                List<string> changeNotificationFields = mapping.SectionMappings
+                    .Select(x => x.Value.NotificationFields)
+                    .SelectMany(field => field)
+                    .ToList();
+
+                options.ConfigureRefresh(refresh =>
+                {
+                    foreach (string field in changeNotificationFields)
+                    {
+                        refresh
+                            .Register(field, activeLabel, false)
+                            .SetCacheExpiration(TimeSpan.FromSeconds(5));
+                    }
+                });
+
+                Refresher = options.GetRefresher();
+            });
         }
 
         /// <summary>
@@ -134,9 +205,8 @@
         /// <param name="label">Property label, if any</param>
         /// <returns>Instance of T with values if found, false otherwise.</returns>
         public async Task<T?> GetConfigurationSetting<T>(string key, string? label = null)
-            where T: class
         {
-            T? returnValue = null;
+            T? returnValue = default(T);
 
             Azure.Response<ConfigurationSetting>? searchSetting = null;
             string usableLabel = string.IsNullOrEmpty(label) ? LabelFilter.Null : label;
@@ -163,7 +233,7 @@
                                                         searchSetting.Value.Value,
                                                         typeof(T));
 
-                    returnValue = value != null ? (T)value : null;
+                    returnValue = value != null ? (T)value : default(T);
                 }
             }
 

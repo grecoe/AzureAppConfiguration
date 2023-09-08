@@ -2,6 +2,8 @@ partial class Program
 {
     static async Task Main(string[] args)
     {
+        // By default doesn't use objects as all settings from Readme.md need
+        // to be configured. 
         bool useService = false;
 
         if (!useService)

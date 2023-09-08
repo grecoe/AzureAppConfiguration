@@ -31,7 +31,7 @@ partial class Program
         // Read
         Console.WriteLine("Read single property");
         string? storedValue = await AzureAppConfiguration.GetConfigurationSetting<string?>(propKey, propLabel);
-        if(storedValue == null || storedValue != propValue)
+        if(string.IsNullOrEmpty(storedValue) || storedValue != propValue)
         {
             Console.WriteLine("Seems to be an error with the saved value.");
         }
@@ -40,7 +40,7 @@ partial class Program
         Console.WriteLine("Update single property");
         AzureAppConfiguration.CreateOrUpdateConfigurationSetting(propKey, propValue2, propContentType, propLabel);
         storedValue = await AzureAppConfiguration.GetConfigurationSetting<string?>(propKey, propLabel);
-        if (storedValue == null || storedValue != propValue2)
+        if (string.IsNullOrEmpty(storedValue) || storedValue != propValue2)
         {
             Console.WriteLine("Seems to be an error with the saved value.");
         }
@@ -49,7 +49,7 @@ partial class Program
         Console.WriteLine("Delete single property");
         AzureAppConfiguration.DeleteConfigurationSetting(propKey, propLabel);
         storedValue = await AzureAppConfiguration.GetConfigurationSetting<string?>(propKey, propLabel);
-        if (storedValue != null)
+        if (!string.IsNullOrEmpty(storedValue))
         {
             Console.WriteLine("Seems to be an error with the saved value.");
         }
