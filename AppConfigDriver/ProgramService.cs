@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 
 partial class Program
 {
+    private static string _applicationSettings = "appsettings.json";
     private static IConfigurationRefresher? _refresher = null;
     private static ConfigurationProperties? ConfigurationProperties = null;
 
@@ -17,7 +18,7 @@ partial class Program
     /// Set up the configurations to be passed to the service. Should be BOTH the appsettings.json, which
     /// is also required to get work done, and the azure app configuration service.
     /// </summary>
-    static void configureConfigurations(HostBuilderContext context, IConfigurationBuilder config)
+    static void ConfigureConfigurations(HostBuilderContext context, IConfigurationBuilder config)
     {
         TokenCredential credential = new DefaultAzureCredential();
         ConfigurationProperties? configurationProperties = GetConfigurationProperties(context, _applicationSettings);
@@ -94,7 +95,7 @@ partial class Program
     /// Set up the main dependencies to inject, most importantly is going to be the options monitors
     /// for the azure app configuration service. 
     /// </summary>
-    static void configureServices(HostBuilderContext context, IServiceCollection services)
+    static void ConfigureServices(HostBuilderContext context, IServiceCollection services)
     {
         // You DO HAVE to know the section name AND class that supports it here so that 
         // they are available in your worker service. 

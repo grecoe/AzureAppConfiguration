@@ -15,8 +15,17 @@
     /// </summary>
     public class AppConfigurationContentType
     {
+        /// <summary>
+        /// Default content type in App Configuration
+        /// </summary>
         public const string CONTENT_STRING = "string";
+        /// <summary>
+        /// Defines an object that can be serialized
+        /// </summary>
         public const string CONTENT_JSON = "application/json";
+        /// <summary>
+        /// Defines a value coming from a key vault
+        /// </summary>
         public const string CONTENT_KV = "application/vnd.microsoft.appconfig.keyvaultref";
     }
 

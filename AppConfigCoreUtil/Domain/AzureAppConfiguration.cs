@@ -138,11 +138,23 @@
         {
             T? returnValue = null;
 
+            Azure.Response<ConfigurationSetting>? searchSetting = null;
             string usableLabel = string.IsNullOrEmpty(label) ? LabelFilter.Null : label;
-            ConfigurationSetting setting = new ConfigurationSetting(key, string.Empty, usableLabel);
-            Azure.Response<ConfigurationSetting> searchSetting = this.ConfigurationClient.GetConfigurationSetting(setting);
+            try
+            {
+                ConfigurationSetting setting = new ConfigurationSetting(key, string.Empty, usableLabel);
+                searchSetting = this.ConfigurationClient.GetConfigurationSetting(setting);
+            }
+            catch( Azure.RequestFailedException exists)
+            {
+                if(exists.Status == (int)HttpStatusCode.NotFound)
+                {
+                    return returnValue;
+                }
+                throw;
+            }
 
-            if(searchSetting.GetRawResponse().Status == (int)HttpStatusCode.OK)
+            if (searchSetting.GetRawResponse().Status == (int)HttpStatusCode.OK)
             {
                 if (!String.IsNullOrEmpty(searchSetting.Value.Value))
                 {
